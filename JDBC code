@@ -1,0 +1,145 @@
+package NumGame;
+import java.sql.*;
+import java.util.*;
+
+public class GuessingNumberGame {
+    private static final String DB_URL = "jdbc:mysql://localhost:3306/guessing_game";
+    private static final String DB_USER = "root";
+    private static final String DB_PASSWORD = "r@m2004";
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        System.out.print("Enter your name: ");
+        String userName = scanner.nextLine();
+
+        try {
+            Class.forName("com.mysql.cj.jdbc.Driver");
+            Connection connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+
+            int userId = getUserId(connection, userName);
+            if (userId == -1) {
+                userId = createUser(connection, userName);
+            }
+
+            String computerNumber = generateComputerNumber();
+            int gameId = createGame(connection, userId, computerNumber);
+
+            long startTime = System.currentTimeMillis();
+            int moves = 0;
+            boolean guessedCorrectly = false;
+
+            while (!guessedCorrectly) {
+                System.out.print("Enter your guess: ");
+                String guess = scanner.nextLine();
+                moves++;
+                String result = checkGuess(computerNumber, guess);
+                System.out.println(result);
+                if (result.equals("++++")) {
+                    guessedCorrectly = true;
+                }
+            }
+
+            long endTime = System.currentTimeMillis();
+            long timeTaken = endTime - startTime;
+            updateGame(connection, gameId, moves, timeTaken);
+
+            System.out.println("Congratulations! You've guessed the number.");
+            displayUserList(connection);
+            displayBestScore(connection);
+
+        } catch (ClassNotFoundException | SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static int getUserId(Connection connection, String userName) throws SQLException {
+        String sql = "SELECT id FROM users WHERE name = ?";
+        PreparedStatement preparedStatement = connection.prepareStatement(sql);
+        preparedStatement.setString(1, userName);
+        ResultSet resultSet = preparedStatement.executeQuery();
+        if (resultSet.next()) {
+            return resultSet.getInt("id");
+        }
+        return -1;
+    }
+
+    private static int createUser(Connection connection, String userName) throws SQLException {
+        String sql = "INSERT INTO users (name) VALUES (?)";
+        PreparedStatement preparedStatement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+        preparedStatement.setString(1, userName);
+        preparedStatement.executeUpdate();
+        ResultSet resultSet = preparedStatement.getGeneratedKeys();
+        if (resultSet.next()) {
+            return resultSet.getInt(1);
+        }
+        return -1;
+    }
+
+    private static int createGame(Connection connection, int userId, String computerNumber) throws SQLException {
+        String sql = "INSERT INTO games (user_id, computer_number, moves, time_taken) VALUES (?, ?, 0, '00:00:00')";
+        PreparedStatement preparedStatement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+        preparedStatement.setInt(1, userId);
+        preparedStatement.setString(2, computerNumber);
+        preparedStatement.executeUpdate();
+        ResultSet resultSet = preparedStatement.getGeneratedKeys();
+        if (resultSet.next()) {
+            return resultSet.getInt(1);
+        }
+        return -1;
+    }
+
+    private static void updateGame(Connection connection, int gameId, int moves, long timeTaken) throws SQLException {
+        String sql = "UPDATE games SET moves = ?, time_taken = ? WHERE id = ?";
+        PreparedStatement preparedStatement = connection.prepareStatement(sql);
+        preparedStatement.setInt(1, moves);
+        preparedStatement.setTime(2, new Time(timeTaken));
+        preparedStatement.setInt(3, gameId);
+        preparedStatement.executeUpdate();
+    }
+
+    private static String generateComputerNumber() {
+        List<Integer> digits = new ArrayList<>(Arrays.asList(0, 1, 2, 3, 4, 5, 6, 7, 8, 9));
+        Collections.shuffle(digits);
+        StringBuilder number = new StringBuilder();
+        for (int i = 0; i < 4; i++) {
+            number.append(digits.get(i));
+        }
+        return number.toString();
+    }
+
+    private static String checkGuess(String computerNumber, String guess) {
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < 4; i++) {
+            if (guess.charAt(i) == computerNumber.charAt(i)) {
+                result.append('+');
+            } else if (computerNumber.contains(String.valueOf(guess.charAt(i)))) {
+                result.append('-');
+            } else {
+                result.append(' ');
+            }
+        }
+        return result.toString();
+    }
+
+    private static void displayUserList(Connection connection) throws SQLException {
+        String sql = "SELECT * FROM users";
+        Statement statement = connection.createStatement();
+        ResultSet resultSet = statement.executeQuery(sql);
+        System.out.println("User List:");
+        while (resultSet.next()) {
+            System.out.println("ID: " + resultSet.getInt("id") + ", Name: " + resultSet.getString("name") + ", Best Score: " + resultSet.getInt("best_score"));
+        }
+    }
+
+    private static void displayBestScore(Connection connection) throws SQLException {
+        String sql = "SELECT u.name, g.moves, g.time_taken FROM games g JOIN users u ON g.user_id = u.id ORDER BY g.moves ASC, g.time_taken ASC LIMIT 1";
+        PreparedStatement preparedStatement = connection.prepareStatement(sql);
+        ResultSet resultSet = preparedStatement.executeQuery();
+        if (resultSet.next()) {
+            String name = resultSet.getString("name");
+            int moves = resultSet.getInt("moves");
+            Time timeTaken = resultSet.getTime("time_taken");
+            System.out.println("Best Score: " + name + " - Moves: " + moves + ", Time: " + timeTaken);
+        }
+    }
+}
