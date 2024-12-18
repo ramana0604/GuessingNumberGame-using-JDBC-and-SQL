@@ -1,0 +1,39 @@
+-- Create the database and switch to it
+CREATE DATABASE guessing_game;
+USE guessing_game;
+
+-- Create the `users` table
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    best_score INT
+);
+
+-- Create the `games` table
+CREATE TABLE games (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    computer_number VARCHAR(4) NOT NULL,
+    moves INT NOT NULL,
+    time_taken TIME NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Query to display the list of users with their best scores
+-- Note: The `games` table does not have a `best_score` column.
+-- We derive the best score as the minimum number of moves in the `games` table.
+
+SELECT 
+    u.id AS user_id,
+    u.name AS user_name,
+    MIN(g.moves) AS best_score
+FROM 
+    users u
+LEFT JOIN 
+    games g
+ON 
+    u.id = g.user_id
+GROUP BY 
+    u.id, u.name
+ORDER BY 
+    best_score ASC;
