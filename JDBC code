@@ -1,4 +1,4 @@
---------SQL CODE-----------
+--------JDBC CODE---------
 package NumGame;
 import java.sql.*;
 import java.util.*;
